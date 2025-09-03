@@ -1,7 +1,19 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { BotState } from './types.js';
+import { BotState, DayStats } from './types.js';
 
+
+const emptyStats = (): DayStats => ({
+    buys: 0,
+    sells: 0,
+    tps: 0,
+    pools: 0,
+    stops: 0,
+    pnlRealized: 0,
+    skimSaved: 0,
+    volumeBought: 0,
+    volumeSold: 0,
+  });
 
 const DEFAULT_STATE: BotState = {
     positions: [],
@@ -23,7 +35,12 @@ const DEFAULT_STATE: BotState = {
     cashFree: 1000,
     equityHint: 1000,
     currentDay: '',
-    currentWeek: ''
+    currentWeek: '',
+    lastSummaryDay: undefined,
+    lastSummaryWeek: undefined,
+    statsToday: emptyStats(),
+    statsWeek: emptyStats(),
+    statsTotal: emptyStats(),
 };
 
 

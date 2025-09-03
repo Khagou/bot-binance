@@ -17,6 +17,17 @@ export type CoreBag = {
     tpDone: Record<string, boolean>; // e.g. {"0.20": true}
 };
 
+export type DayStats = {
+    buys: number;
+    sells: number;
+    tps: number;
+    pools: number;
+    stops: number;
+    pnlRealized: number;   // realized profit in USDT (after fees if modeled)
+    skimSaved: number;     // amount skimmed to savings
+    volumeBought: number;  // USDT used to buy
+    volumeSold: number;    // USDT received from sells
+};
 
 export type BotState = {
     positions: PositionLot[];
@@ -49,4 +60,11 @@ export type BotState = {
     // rotation markers
     currentDay: string; // YYYY-MM-DD
     currentWeek: string; // ISO week id
+    lastSummaryDay?: string;
+    lastSummaryWeek?: string;
+
+    // stats
+    statsToday: DayStats;
+    statsWeek: DayStats;
+    statsTotal: DayStats;
 };

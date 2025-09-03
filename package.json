@@ -5,6 +5,7 @@
     "type": "module",
     "scripts": {
         "dev": "tsx src/index.ts",
+        "ping-telegram": "tsx src/tools/pingTelegram.ts",
         "start": "node dist/index.js",
         "build": "tsc"
     },
