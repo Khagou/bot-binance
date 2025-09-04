@@ -27,8 +27,7 @@ async function sendDailySummary(prevDay: string) {
       `vol: buy ${fmt(s.volumeBought)} / sell ${fmt(s.volumeSold)}`,
       `caps: used ${fmt(used)} / ${fmt(state.dailyCapBase)} (${fmt(usedPct)}%) | recycled: ${fmt(state.recycledCash)}`,
       coreLine,
-    ].join('
-  ');
+    ].join('\n');
     await notifyEvent('INFO', lines);
     state.lastSummaryDay = prevDay;
     // reset day stats after summary
@@ -47,8 +46,7 @@ async function sendWeeklySummary(prevWeek: string) {
       `vol: buy ${fmt(s.volumeBought)} / sell ${fmt(s.volumeSold)}`,
       `weekly cap used: ${fmt(used)} / ${fmt(state.weeklyCapBase)} (${fmt(usedPct)}%) | recycled carry: ${fmt(state.recycledCash)}`,
       coreLine,
-    ].join('
-  ');
+    ].join('\n');
     await notifyEvent('INFO', lines);
     state.lastSummaryWeek = prevWeek;
     // reset week stats after summary
