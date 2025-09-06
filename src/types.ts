@@ -1,70 +1,102 @@
-export type Candle = { time: number; open: number; high: number; low: number; close: number; volume: number };
+// src/types.ts (additions)
+export type SymbolPair = string; // e.g. "BTC/USDC"
 
+export interface EmaParams {
+  fast: number; // e.g. 9
+  slow: number; // e.g. 21
+}
 
-export type PositionLot = {
-    id: string;
-    entry: number; // entry price
-    qtyRem: number; // remaining qty
-    tpTakenIdx: number; // -1 none, 0 first TP, 1 second TP
-    pooled: boolean; // moved to core bag
-    costBasis: number; // cost basis for remaining qty
-};
+export interface PerSymbolConfig {
+  symbol: SymbolPair;
+  orderSizeUSDT?: number; // order size for this symbol
+  ema?: EmaParams;        // override per symbol
+  dailyCapUSDT?: number;  // optional per-symbol daily cap
+  weeklyCapUSDT?: number; // optional per-symbol weekly cap
+}
 
+export interface BudgetCaps {
+  dailyCapUSDT: number;   // total daily budget for the bot
+  weeklyCapUSDT: number;  // total weekly budget for the bot
+}
 
-export type CoreBag = {
-    qty: number;
-    avgEntry: number | null;
-    tpDone: Record<string, boolean>; // e.g. {"0.20": true}
-};
+export interface StrategyConfig {
+  timeframe: string;      // e.g. "15m"
+  ema: EmaParams;         // default EMA if not overridden per symbol
+}
 
-export type DayStats = {
-    buys: number;
-    sells: number;
-    tps: number;
-    pools: number;
-    stops: number;
-    pnlRealized: number;   // realized profit in USDT (after fees if modeled)
-    skimSaved: number;     // amount skimmed to savings
-    volumeBought: number;  // USDT used to buy
-    volumeSold: number;    // USDT received from sells
-};
+export interface NotifierConfig {
+  telegramBotToken?: string;
+  telegramChatId?: string;
+}
 
-export type BotState = {
-    positions: PositionLot[];
-    core: CoreBag;
-    lastBuyMs: number | null;
-    // budgets
-    dailyCapBase: number;
-    weeklyCapBase: number;
-    dailyRolloverMax: number;
-    weeklyRolloverMax: number;
-    recycledSoftCap: number;
-    exposureCap: number; // 0..1
-    skimPct: number; // 0..1
+export interface ExchangeConfig {
+  id: string;             // e.g. "binance"
+  apiKey?: string;
+  apiSecret?: string;
+  paper?: boolean;        // if true, ignore keys
+}
 
+export interface BotConfig {
+  id: string;                 // unique id for the bot (slug)
+  name?: string;              // display name
+  exchange: ExchangeConfig;
+  symbols: PerSymbolConfig[]; // one or more symbols
+  strategy: StrategyConfig;
+  budget: BudgetCaps;
+  notifier?: NotifierConfig;
+  stateFile: string;          // path under /data/bots/<id>.json
+  timezone?: string;          // e.g. "Europe/Paris"
+}
 
-    // live counters
-    dailyRemaining: number;
-    weeklyRemaining: number;
-    carryDailyNext: number;
-    carryWeeklyNext: number;
-    recycledCash: number;
-    recycledTodayBudget: number;
+export interface SymbolSpendState {
+  spentToday: number;
+  spentThisWeek: number;
+}
 
+export interface BotSpendState {
+  totalToday: number;
+  totalThisWeek: number;
+  perSymbol: Record<SymbolPair, SymbolSpendState>;
+  lastResetDailyISO?: string;  // YYYY-MM-DD
+  lastResetWeeklyISO?: string; // ISO week anchor date
+}
 
-    // accounting
-    cashFree: number; // informational (paper)
-    equityHint: number; // informational
+// src/types.ts
+export interface BotState {
+    cashFree: number;        // liquidités en USDT
+    equityHint?: number;     // valorisation mark-to-market (optionnel)
+  }
 
+  // === ORDRES / PORTEFEUILLE ===
+export type Side = "buy" | "sell";
 
-    // rotation markers
-    currentDay: string; // YYYY-MM-DD
-    currentWeek: string; // ISO week id
-    lastSummaryDay?: string;
-    lastSummaryWeek?: string;
+export interface OrderRecord {
+  id: string;
+  ts: number;                 // Date.now()
+  symbol: SymbolPair;
+  side: Side;                 // pour l’instant: "buy"
+  baseQty: number;            // quantité achetée (BTC, ETH, etc.)
+  price: number;              // prix (USDT par unité)
+  costUSDT: number;           // quote dépensée
+  paper: boolean;
+}
 
-    // stats
-    statsToday: DayStats;
-    statsWeek: DayStats;
-    statsTotal: DayStats;
-};
+export interface Holding {
+  baseQty: number;            // quantité détenue
+  avgPrice: number;           // prix de revient moyen (USDT)
+}
+
+export interface PortfolioState {
+  // utilisé surtout en PAPER; en réel tu peux le laisser à 0/undefined
+  cashUSDT?: number;
+  holdings: Record<SymbolPair, Holding>;
+  orders: OrderRecord[];
+  realizedPnlUSDT: number;    // utile quand tu feras des ventes
+}
+
+export interface PersistentState {
+  spend: BotSpendState;       // déjà existant (caps jour/semaine)
+  portfolio: PortfolioState;  // nouveau bloc
+}
+
+  

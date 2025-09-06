@@ -1,0 +1,51 @@
+{
+  "positions": [
+    {
+      "id": "lot_1756887467865",
+      "entry": 111192.01,
+      "qtyRem": 0.00008993451957564218,
+      "tpTakenIdx": -1,
+      "pooled": false,
+      "costBasis": 10
+    },
+    {
+      "id": "lot_1756889284917",
+      "entry": 111048.45,
+      "qtyRem": 0.0000900507841397156,
+      "tpTakenIdx": -1,
+      "pooled": false,
+      "costBasis": 10
+    },
+    {
+      "id": "lot_1756891135149",
+      "entry": 111222,
+      "qtyRem": 0.00008991026955098811,
+      "tpTakenIdx": -1,
+      "pooled": false,
+      "costBasis": 10
+    }
+  ],
+  "core": {
+    "qty": 0,
+    "avgEntry": null,
+    "tpDone": {}
+  },
+  "lastBuyMs": 1756891135149,
+  "dailyCapBase": 30,
+  "weeklyCapBase": 100,
+  "dailyRolloverMax": 30,
+  "weeklyRolloverMax": 100,
+  "recycledSoftCap": 30,
+  "exposureCap": 0.7,
+  "skimPct": 0.3,
+  "dailyRemaining": 0,
+  "weeklyRemaining": 70,
+  "carryDailyNext": 0,
+  "carryWeeklyNext": 0,
+  "recycledCash": 0,
+  "recycledTodayBudget": 0,
+  "cashFree": 970,
+  "equityHint": 970,
+  "currentDay": "2025-09-03",
+  "currentWeek": "2025-W36"
+}

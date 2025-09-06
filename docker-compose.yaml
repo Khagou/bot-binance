@@ -1,0 +1,20 @@
+version: "3.9"
+services:
+  bot:
+    build: .
+    container_name: crypto-bot
+    restart: unless-stopped
+    environment:
+      TZ: ${TZ:-Europe/Paris}
+      PAPER: ${PAPER:-1}
+      SYMBOL: ${SYMBOL:-BTC/USDT}
+      TIMEFRAME: ${TIMEFRAME:-15m}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
+      TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID}
+      DASHBOARD_PORT: ${DASHBOARD_PORT:-8080}
+      # DASHBOARD_TOKEN: ${DASHBOARD_TOKEN:-supersecret}
+      STATE_FILE: /data/state.json
+    ports:
+      - "${DASHBOARD_PORT:-8080}:8080"
+    volumes:
+      - ./data:/data

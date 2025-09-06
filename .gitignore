@@ -1,28 +1,11 @@
-# deps
-node_modules/
-
-# builds
-dist/
-build/
-
-# env & secrets
-.env
-.env.local
-.env.*.local
-!.env.example
-
-# logs
-*.log
+node_modules
 npm-debug.log*
-yarn-debug.log*
-pnpm-debug.log*
-
-# TypeScript
-*.tsbuildinfo
-
-# editors
-.vscode/
-.idea/
-
-# projet (notre bot)
-.state.json
+yarn.lock
+.pnpm-store
+.dist
+/build
+.DS_Store
+.git
+.gitignore
+.env
+/data
