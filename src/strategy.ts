@@ -1,7 +1,7 @@
 // src/strategy.ts (additions / adaptation)
 import { BotConfig, PerSymbolConfig } from "./types.js";
 import { loadSpendState, saveSpendState, resetIfNeeded, addSpend, recordBuy, loadBotState, saveBotState } from "./state.js";
-import { createExchange, fetchOHLCV, placeMarketBuy, fetchPrice } from "./exchange.js"; // adapt to your actual names
+import { createExchangeForBot, fetchOHLCV, placeMarketBuy, fetchPrice } from "./exchange.js"; // adapt to your actual names
 import { computeEmaSignal } from "./indicators.js"; // adapt to your actual API
 import { notify } from "./notifier.js";
 
@@ -10,7 +10,7 @@ export async function runBotOnce(cfg: BotConfig) {
   const st = loadBotState(cfg.stateFile);
   resetIfNeeded(st.spend, tz);
 
-  const ex = await createExchange(cfg.exchange);
+  const ex = await createExchangeForBot(cfg);
 
   for (const s of cfg.symbols) {
     const symbol = s.symbol;
@@ -44,6 +44,8 @@ export async function runBotOnce(cfg: BotConfig) {
     // Prix courant pour baseQty (ok en paper et même en réel si createOrder ne renvoie pas la qty)
     const px = await fetchPrice(ex, symbol);
     const baseQty = px > 0 ? remaining / px : 0;
+    
+    const paper = !!(cfg.exchange?.paper);  // safe pour TS même si exchange est undefined
 
     const filled = await placeMarketBuy(ex, symbol, remaining, { paper: cfg.exchange.paper });
     if (filled) {
@@ -57,7 +59,7 @@ export async function runBotOnce(cfg: BotConfig) {
         baseQty,
         price: px,
         costUSDT: filled.costUSDT,
-        paper: !!cfg.exchange.paper,
+        paper,
       });
       saveBotState(cfg.stateFile, st);
 

@@ -1,6 +1,18 @@
 // src/types.ts (additions)
 export type SymbolPair = string; // e.g. "BTC/USDC"
 
+
+// === Exchange accounts (stockés séparément) ===
+export interface ExchangeAccount {
+  id: string;            // ex: "binance-main"
+  exchangeId: string;    // ccxt id ex: "binance", "kraken", "okx"
+  label?: string;        // affichage UI
+  apiKey?: string;
+  apiSecret?: string;
+  paper?: boolean;       // simulateur interne (aucun call privé)
+  sandbox?: boolean;     // testnet si l'exchange le supporte (ex.setSandboxMode(true))
+}
+
 export interface EmaParams {
   fast: number; // e.g. 9
   slow: number; // e.g. 21
@@ -37,15 +49,31 @@ export interface ExchangeConfig {
 }
 
 export interface BotConfig {
-  id: string;                 // unique id for the bot (slug)
-  name?: string;              // display name
-  exchange: ExchangeConfig;
-  symbols: PerSymbolConfig[]; // one or more symbols
-  strategy: StrategyConfig;
-  budget: BudgetCaps;
-  notifier?: NotifierConfig;
-  stateFile: string;          // path under /data/bots/<id>.json
-  timezone?: string;          // e.g. "Europe/Paris"
+  id: string;
+  name?: string;
+  timezone?: string;
+  stateFile: string;
+
+  //  ➜ référence un compte d’exchange enregistré
+  exchangeAccountId?: string;
+
+  //  ➜ config inline (si pas de exchangeAccountId)
+  exchange?: {
+    id: string; apiKey?: string; apiSecret?: string; paper?: boolean;
+  };
+
+  strategy: { timeframe: string; ema: { fast: number; slow: number } };
+  budget: { dailyCapUSDT: number; weeklyCapUSDT: number };
+  notifier?: { telegramBotToken?: string; telegramChatId?: string };
+
+  symbols: Array<{
+    symbol: string;
+    orderSizeUSDT?: number;
+    dailyCapUSDT?: number;
+    weeklyCapUSDT?: number;
+    ema?: { fast: number; slow: number };
+    minBuyCooldownMs?: number;
+  }>;
 }
 
 export interface SymbolSpendState {

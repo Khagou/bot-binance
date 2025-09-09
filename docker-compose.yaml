@@ -11,6 +11,7 @@ services:
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
       TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID}
       DASHBOARD_PORT: ${DASHBOARD_PORT:-8080}
+      EXCHANGES_FILE: /data/exchanges.json
       # DASHBOARD_TOKEN: ${DASHBOARD_TOKEN:-supersecret}
       STATE_FILE: /data/state.json
     ports:

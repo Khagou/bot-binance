@@ -1,19 +1,32 @@
 import ccxt from "ccxt";
-import { ExchangeConfig } from "./types.js";
+import { ExchangeConfig, ExchangeAccount, BotConfig } from "./types.js";
+import { getAccount } from "./accounts.js";
 
-export async function createExchange(cfg: ExchangeConfig) {
+// instancie ccxt depuis un "exchange config inline" (legacy)
+export async function createExchange(cfg: { id: string; apiKey?: string; apiSecret?: string; paper?: boolean; sandbox?: boolean; }) {
   const Klass = (ccxt as any)[cfg.id];
   if (!Klass) throw new Error(`Unknown exchange ${cfg.id}`);
-  const ex = new Klass({
-    apiKey: cfg.apiKey,
-    secret: cfg.apiSecret,
-    enableRateLimit: true,
-  });
-  // Optionnel : si tu veux placer de vrais ordres sur TESTNET (avec clés testnet)
-  if (typeof ex.setSandboxMode === "function" && cfg.paper) {
-    ex.setSandboxMode(true); // ex: binance -> https://testnet.binance.vision
+  const ex = new Klass({ apiKey: cfg.apiKey, secret: cfg.apiSecret, enableRateLimit: true });
+  if (typeof (ex as any).setSandboxMode === "function" && (cfg.sandbox || cfg.paper)) {
+    (ex as any).setSandboxMode(true);
   }
   return ex;
+}
+
+// depuis un ExchangeAccount enregistré
+export async function createExchangeFromAccount(acc: ExchangeAccount) {
+  return createExchange({ id: acc.exchangeId, apiKey: acc.apiKey, apiSecret: acc.apiSecret, paper: acc.paper, sandbox: acc.sandbox });
+}
+
+// ➜ résolution pour un BotConfig (réf compte OU inline)
+export async function createExchangeForBot(cfg: BotConfig) {
+  if (cfg.exchangeAccountId) {
+    const acc = getAccount(cfg.exchangeAccountId);
+    if (!acc) throw new Error(`Exchange account not found: ${cfg.exchangeAccountId}`);
+    return createExchangeFromAccount(acc);
+  }
+  if (cfg.exchange?.id) return createExchange({ ...cfg.exchange });
+  throw new Error("No exchange provided (exchangeAccountId or exchange.id required)");
 }
 
 export async function fetchOHLCV(ex: any, symbol: string, timeframe: string, limit = 200) {

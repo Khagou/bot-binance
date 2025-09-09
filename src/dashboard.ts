@@ -10,7 +10,11 @@ export function startDashboard(manager: BotManager, opts: Options) {
   const server = http.createServer(async (req, res) => {
     if (!req.url) { res.writeHead(404); res.end(); return; }
 
-    const isApi = req.url.startsWith("/api/");
+    // on route au pathname (ignore la query, ex: "/?id=x")
+    const u = new URL(req.url, "http://localhost");
+    const path = u.pathname;
+
+    const isApi = path.startsWith("/api/");
     if (opts.token && isApi) {
       if (req.headers["authorization"] !== `Bearer ${opts.token}`) {
         res.writeHead(401); res.end("Unauthorized"); return;
@@ -18,17 +22,17 @@ export function startDashboard(manager: BotManager, opts: Options) {
     }
 
     // UI
-    if (req.method === "GET" && req.url === "/") return serveIndex(res);
+    if (req.method === "GET" && path === "/") return serveIndex(res);
 
     // API: list
-    if (req.method === "GET" && req.url === "/api/bots") {
+    if (req.method === "GET" && path === "/api/bots") {
       res.setHeader("Content-Type","application/json");
       res.end(JSON.stringify(manager.summaries()));
       return;
     }
 
     // API: upsert bot
-    if (req.method === "POST" && req.url === "/api/bots") {
+    if (req.method === "POST" && path === "/api/bots") {
       const body = await readJson(req);
       const cfg = validateBotConfig(body as BotConfig);
       manager.upsert(cfg);
@@ -38,11 +42,12 @@ export function startDashboard(manager: BotManager, opts: Options) {
     }
 
     // API: details (portfolio + orders)
-    const md = req.url.match(/^\/api\/bots\/([^\/]+)\/details$/);
+    const md = path.match(/^\/api\/bots\/([^\/]+)\/details$/);
     if (req.method === "GET" && md) {
       const id = decodeURIComponent(md[1]);
       const cfg = manager.get(id);
       if (!cfg) { res.writeHead(404); res.end("Unknown bot"); return; }
+      if (!cfg.exchange) { res.writeHead(400); res.end("Bot has no inline exchange config"); return; }
 
       const st = loadBotState(cfg.stateFile);
       const ex = await createExchange(cfg.exchange);
@@ -62,7 +67,7 @@ export function startDashboard(manager: BotManager, opts: Options) {
     }
 
     // API: start/stop/delete
-    const m = req.url.match(/^\/api\/bots\/([^\/]+)\/(start|stop|delete)$/);
+    const m = path.match(/^\/api\/bots\/([^\/]+)\/(start|stop|delete)$/);
     if (req.method === "POST" && m) {
       const id = decodeURIComponent(m[1]);
       const action = m[2];
@@ -102,7 +107,7 @@ function readJson(req: http.IncomingMessage): Promise<any> {
 function validateBotConfig(input: any): BotConfig {
   if (!input?.id) throw new Error("id required");
   if (!Array.isArray(input.symbols) || input.symbols.length === 0) throw new Error("symbols[] required");
-  if (!input.exchange?.id) throw new Error("exchange.id required");
+  if (!input.exchange?.id) throw new Error("exchange.id required"); // (si tu passes par comptes plus tard, on assouplira ici)
   if (!input.strategy?.timeframe) throw new Error("strategy.timeframe required");
   if (!input.strategy?.ema) throw new Error("strategy.ema required");
   if (!input.budget) throw new Error("budget required");
@@ -189,6 +194,19 @@ function serveIndex(res: http.ServerResponse) {
         load();
       };
 
+      // Préremplir le formulaire depuis l'URL ?query (pratique, mais évite d'y mettre des secrets)
+      const params = new URLSearchParams(location.search);
+      const f = document.getElementById('f');
+      for (const [k,v] of params) {
+        const el = f.elements.namedItem(k);
+        if (!el) continue;
+        if (el instanceof HTMLInputElement && el.type === 'checkbox') {
+          el.checked = (v === 'on' || v === 'true' || v === '1');
+        } else {
+          el.value = v;
+        }
+      }
+
       function authHeaders() {
         const t = localStorage.getItem('dashToken');
         return t ? { 'Authorization': 'Bearer ' + t } : {};
@@ -201,12 +219,12 @@ function serveIndex(res: http.ServerResponse) {
         return res.json();
       }
 
-      // === Auto refresh control ===
+      // === Auto refresh control (évite que Details se ferme tout seul) ===
       let autoTimer = null;
-      function startAuto(){ stopAuto(); autoTimer = setInterval(load, 5000); } // mets 8000 si tu veux moins de charge
+      function startAuto(){ stopAuto(); autoTimer = setInterval(load, 5000); }
       function stopAuto(){ if (autoTimer) clearInterval(autoTimer); autoTimer = null; }
 
-      // On mémorise quels bots ont leur panneau "Details" ouvert
+      // On mémorise les bots ayant leur "Details" ouvert
       const openDetails = new Set();
 
       async function load() {
@@ -232,13 +250,11 @@ function serveIndex(res: http.ServerResponse) {
               '<button data-act="details" data-id="'+b.id+'" style="margin-left:6px">Details</button>' +
               '<button data-act="delete" data-id="'+b.id+'" style="margin-left:6px">Delete</button>' +
             '</td></tr>';
-          // si les details de ce bot sont censés être ouverts, on ajoute un placeholder pour réinsertion
           if (openDetails.has(b.id)) rows += '<tr id="details-'+b.id+'"><td colspan="6"></td></tr>';
         }
         document.getElementById('list').innerHTML =
           '<table><thead><tr><th>ID</th><th>Symbols</th><th>TF</th><th>Budget</th><th>Status</th><th>Actions</th></tr></thead><tbody>'+rows+'</tbody></table>';
 
-        // Boutons
         document.querySelectorAll('#list button').forEach(btn => btn.onclick = async () => {
           const id = btn.getAttribute('data-id');
           const act = btn.getAttribute('data-act');
@@ -250,7 +266,7 @@ function serveIndex(res: http.ServerResponse) {
               return;
             }
             openDetails.add(id);
-            stopAuto(); // on fige l’auto-refresh pendant qu’un panneau est ouvert
+            stopAuto();
             const data = await api('/api/bots/' + encodeURIComponent(id) + '/details');
             showDetails(id, data);
             return;
@@ -260,12 +276,12 @@ function serveIndex(res: http.ServerResponse) {
           load();
         });
 
-        // Ré-injecter le contenu des panneaux ouverts (si la table vient d’être regénérée)
+        // Ré-insérer les panneaux ouverts après refresh
         openDetails.forEach(async (id) => {
           const host = document.getElementById('details-' + id);
           if (host && !host.firstChild) {
             const data = await api('/api/bots/' + encodeURIComponent(id) + '/details');
-            host.outerHTML = buildDetailsHTML(data);
+            host.outerHTML = buildDetailsHTML(data, id);
           }
         });
       }
@@ -276,7 +292,7 @@ function serveIndex(res: http.ServerResponse) {
         openDetails.delete(id);
       }
 
-      function buildDetailsHTML(data) {
+      function buildDetailsHTML(data, id) {
         const s = data.summary;
         let rows = '';
         for (const r of (s.rows||[])) {
@@ -302,7 +318,7 @@ function serveIndex(res: http.ServerResponse) {
             '</tr>';
         }
         return (
-          '<tr id="details-'+data.summary.id+'"><td colspan="6">' +
+          '<tr id="details-'+id+'"><td colspan="6">' +
           '<div style="border:1px solid #eee;border-radius:10px;padding:12px">' +
             '<h3>Summary</h3>' +
             '<p><strong>Total value:</strong> ' + s.totals.valueUSDT.toFixed(2) + ' — ' +
@@ -323,10 +339,9 @@ function serveIndex(res: http.ServerResponse) {
       }
 
       function showDetails(id, data) {
-        // on construit le HTML complet et on l’insère juste après la ligne du bot
         const hostRow = document.getElementById('row-' + id);
         const existing = document.getElementById('details-' + id);
-        const html = buildDetailsHTML(Object.assign({ summary: Object.assign({ id }, data.summary) }, data));
+        const html = buildDetailsHTML(data, id);
         if (existing) {
           existing.outerHTML = html;
         } else if (hostRow && hostRow.parentNode) {
