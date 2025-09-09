@@ -47,7 +47,7 @@ export async function runBotOnce(cfg: BotConfig) {
     
     const paper = !!(cfg.exchange?.paper);  // safe pour TS même si exchange est undefined
 
-    const filled = await placeMarketBuy(ex, symbol, remaining, { paper: cfg.exchange.paper });
+    const filled = await placeMarketBuy(ex, symbol, remaining, { paper });
     if (filled) {
       // suivi budget + ordre/holdings
       addSpend(st.spend, symbol, filled.costUSDT);
