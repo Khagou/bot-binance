@@ -201,6 +201,14 @@ function serveIndex(res: http.ServerResponse) {
         return res.json();
       }
 
+      // === Auto refresh control ===
+      let autoTimer = null;
+      function startAuto(){ stopAuto(); autoTimer = setInterval(load, 5000); } // mets 8000 si tu veux moins de charge
+      function stopAuto(){ if (autoTimer) clearInterval(autoTimer); autoTimer = null; }
+
+      // On mémorise quels bots ont leur panneau "Details" ouvert
+      const openDetails = new Set();
+
       async function load() {
         try {
           const bots = await api('/api/bots');
@@ -224,28 +232,51 @@ function serveIndex(res: http.ServerResponse) {
               '<button data-act="details" data-id="'+b.id+'" style="margin-left:6px">Details</button>' +
               '<button data-act="delete" data-id="'+b.id+'" style="margin-left:6px">Delete</button>' +
             '</td></tr>';
+          // si les details de ce bot sont censés être ouverts, on ajoute un placeholder pour réinsertion
+          if (openDetails.has(b.id)) rows += '<tr id="details-'+b.id+'"><td colspan="6"></td></tr>';
         }
         document.getElementById('list').innerHTML =
           '<table><thead><tr><th>ID</th><th>Symbols</th><th>TF</th><th>Budget</th><th>Status</th><th>Actions</th></tr></thead><tbody>'+rows+'</tbody></table>';
 
+        // Boutons
         document.querySelectorAll('#list button').forEach(btn => btn.onclick = async () => {
           const id = btn.getAttribute('data-id');
           const act = btn.getAttribute('data-act');
+
           if (act === 'details') {
+            if (openDetails.has(id)) {
+              closeDetails(id);
+              if (openDetails.size === 0) startAuto();
+              return;
+            }
+            openDetails.add(id);
+            stopAuto(); // on fige l’auto-refresh pendant qu’un panneau est ouvert
             const data = await api('/api/bots/' + encodeURIComponent(id) + '/details');
             showDetails(id, data);
             return;
           }
+
           await api('/api/bots/' + encodeURIComponent(id) + '/' + act, { method: 'POST' });
           load();
         });
+
+        // Ré-injecter le contenu des panneaux ouverts (si la table vient d’être regénérée)
+        openDetails.forEach(async (id) => {
+          const host = document.getElementById('details-' + id);
+          if (host && !host.firstChild) {
+            const data = await api('/api/bots/' + encodeURIComponent(id) + '/details');
+            host.outerHTML = buildDetailsHTML(data);
+          }
+        });
       }
 
-      function showDetails(id, data) {
-        const host = document.querySelector('#row-' + CSS.escape(id));
-        const old = document.getElementById('details-' + id);
-        if (old) old.remove();
+      function closeDetails(id) {
+        const row = document.getElementById('details-' + id);
+        if (row) row.remove();
+        openDetails.delete(id);
+      }
 
+      function buildDetailsHTML(data) {
         const s = data.summary;
         let rows = '';
         for (const r of (s.rows||[])) {
@@ -270,15 +301,14 @@ function serveIndex(res: http.ServerResponse) {
             '<td>'+(o.paper?'paper':'live')+'</td>' +
             '</tr>';
         }
-        const box = document.createElement('tr');
-        box.id = 'details-' + id;
-        box.innerHTML =
-          '<td colspan="6"><div style="border:1px solid #eee;border-radius:10px;padding:12px">' +
+        return (
+          '<tr id="details-'+data.summary.id+'"><td colspan="6">' +
+          '<div style="border:1px solid #eee;border-radius:10px;padding:12px">' +
             '<h3>Summary</h3>' +
             '<p><strong>Total value:</strong> ' + s.totals.valueUSDT.toFixed(2) + ' — ' +
-               '<strong>Invested:</strong> ' + s.totals.investedUSDT.toFixed(2) + ' — ' +
-               '<strong>PNL:</strong> ' + s.totals.pnlUSDT.toFixed(2) + ' (' + s.totals.pnlPct.toFixed(2) + '%) — ' +
-               '<strong>Cash:</strong> ' + s.totals.cashUSDT.toFixed(2) + ' USDT</p>' +
+              '<strong>Invested:</strong> ' + s.totals.investedUSDT.toFixed(2) + ' — ' +
+              '<strong>PNL:</strong> ' + s.totals.pnlUSDT.toFixed(2) + ' (' + s.totals.pnlPct.toFixed(2) + '%) — ' +
+              '<strong>Cash:</strong> ' + s.totals.cashUSDT.toFixed(2) + ' USDT</p>' +
             '<table style="width:100%;border-collapse:collapse">' +
               '<thead><tr><th>Symbol</th><th>Qty</th><th>PRU</th><th>Price</th><th>Value</th><th>PNL</th></tr></thead>' +
               '<tbody>' + (rows || '<tr><td colspan="6" style="color:#777">No holdings</td></tr>') + '</tbody>' +
@@ -288,31 +318,27 @@ function serveIndex(res: http.ServerResponse) {
               '<thead><tr><th>Date</th><th>Symbol</th><th>Side</th><th>Qty</th><th>Price</th><th>Cost</th><th>Mode</th></tr></thead>' +
               '<tbody>' + (orders || '<tr><td colspan="7" style="color:#777">No orders</td></tr>') + '</tbody>' +
             '</table>' +
-          '</div></td>';
-        host.parentNode.insertBefore(box, host.nextSibling);
+          '</div></td></tr>'
+        );
       }
 
-      const f = document.getElementById('f');
-      f.onsubmit = async (e) => {
-        e.preventDefault();
-        const fd = new FormData(f);
-        const symbols = (fd.get('symbols')||'').toString().split(',').map(s=>s.trim()).filter(Boolean).map(s=>({symbol:s, orderSizeUSDT: Number(fd.get('order'))||undefined}));
-        const body = {
-          id: fd.get('id'),
-          name: fd.get('name')||undefined,
-          timezone: fd.get('timezone')||undefined,
-          stateFile: fd.get('stateFile')||('/data/bots/'+fd.get('id')+'.json'),
-          exchange: { id: fd.get('exId')||'binance', apiKey: fd.get('apiKey')||undefined, apiSecret: fd.get('apiSecret')||undefined, paper: !!fd.get('paper') },
-          strategy: { timeframe: fd.get('timeframe')||'15m', ema: { fast: Number(fd.get('emaFast')||9), slow: Number(fd.get('emaSlow')||21) } },
-          budget: { dailyCapUSDT: Number(fd.get('daily')||100), weeklyCapUSDT: Number(fd.get('weekly')||500) },
-          notifier: { telegramBotToken: fd.get('tgToken')||undefined, telegramChatId: fd.get('tgChat')||undefined },
-          symbols
-        };
-        await api('/api/bots', { method:'POST', body: JSON.stringify(body) });
-        f.reset(); load(); alert('Bot enregistré');
-      };
+      function showDetails(id, data) {
+        // on construit le HTML complet et on l’insère juste après la ligne du bot
+        const hostRow = document.getElementById('row-' + id);
+        const existing = document.getElementById('details-' + id);
+        const html = buildDetailsHTML(Object.assign({ summary: Object.assign({ id }, data.summary) }, data));
+        if (existing) {
+          existing.outerHTML = html;
+        } else if (hostRow && hostRow.parentNode) {
+          const tmp = document.createElement('tbody');
+          tmp.innerHTML = html;
+          hostRow.parentNode.insertBefore(tmp.firstElementChild, hostRow.nextSibling);
+        }
+      }
 
-      load(); setInterval(load, 5000);
+      // boot
+      load();
+      startAuto();
     })();
   </script>`;
   res.setHeader("Content-Type","text/html; charset=utf-8");
